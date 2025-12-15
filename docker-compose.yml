@@ -1,0 +1,8 @@
+services:
+  app:
+    build: .
+    container_name: payment-notification-app
+    volumes:
+      - .:/app
+    working_dir: /app
+    tty: true
