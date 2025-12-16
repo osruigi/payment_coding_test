@@ -27,7 +27,7 @@ Inicializar el proyecto con una base sólida y estándar.
 Proyecto ejecutable con `vendor/` y tests listos para añadirse.
 
 **Commit sugerido**
-"chore: initial project setup with composer and phpunit"
+chore: initial project setup with composer and phpunit
 
 ---
 
