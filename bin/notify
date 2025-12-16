@@ -1,0 +1,91 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use App\Application\NotifyPayment\NotifyPaymentUseCase;
+use App\Domain\Payment\NotificationId;
+use App\Domain\Payment\Payment;
+use App\Domain\Payment\PaymentStatus;
+use App\Infrastructure\Http\HttpNotificationSender;
+use App\Infrastructure\Security\JwtSignatureGenerator;
+use App\Infrastructure\Serialization\PaymentSerializer;
+use GuzzleHttp\Client;
+
+function usage(): never
+{
+    fwrite(
+        STDERR,
+        "Usage: JWT_SECRET=secret ENDPOINT=https://example.com php bin/notify --amount=100 --status=completed --creditor=ES123 --debtor=ES456 [--notification-id=uuid]\n"
+    );
+    exit(1);
+}
+
+function parseArgs(array $argv): array
+{
+    $values = [];
+    foreach ($argv as $arg) {
+        if (!str_starts_with($arg, '--')) {
+            continue;
+        }
+
+        [$key, $value] = array_pad(explode('=', substr($arg, 2), 2), 2, null);
+        $values[$key] = $value ?? '';
+    }
+
+    foreach (['amount', 'status', 'creditor', 'debtor'] as $required) {
+        if (!isset($values[$required])) {
+            usage();
+        }
+    }
+
+    return $values;
+}
+
+$secret = getenv('JWT_SECRET');
+$endpoint = getenv('ENDPOINT');
+
+if ($secret === false || $endpoint === false) {
+    fwrite(STDERR, "JWT_SECRET and ENDPOINT environment variables are required.\n");
+    usage();
+}
+
+$args = parseArgs(array_slice($argv, 1));
+
+try {
+    $amount = (float) $args['amount'];
+    $status = PaymentStatus::from($args['status']);
+    $creditor = $args['creditor'];
+    $debtor = $args['debtor'];
+    $notificationId = isset($args['notification-id'])
+        ? NotificationId::fromString($args['notification-id'])
+        : NotificationId::generate();
+} catch (\Throwable $exception) {
+    fwrite(STDERR, "Invalid arguments: {$exception->getMessage()}\n");
+    exit(1);
+}
+
+$payment = new Payment(
+    amount: $amount,
+    status: $status,
+    creditorAccount: $creditor,
+    debtorAccount: $debtor,
+    notificationId: $notificationId
+);
+
+$serializer = new PaymentSerializer();
+$signatureGenerator = new JwtSignatureGenerator($secret, $serializer);
+$httpClient = new Client();
+$notificationSender = new HttpNotificationSender($httpClient, $endpoint, $serializer);
+
+$useCase = new NotifyPaymentUseCase($notificationSender, $signatureGenerator);
+
+try {
+    $useCase->execute($payment);
+    fwrite(STDOUT, "Notification sent successfully with ID {$notificationId->value()}\n");
+} catch (\Throwable $exception) {
+    fwrite(STDERR, "Failed to send notification: {$exception->getMessage()}\n");
+    exit(1);
+}

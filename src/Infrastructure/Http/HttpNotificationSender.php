@@ -12,6 +12,8 @@ use GuzzleHttp\Exception\GuzzleException;
 
 final class HttpNotificationSender implements NotificationSenderPort
 {
+    private const DEFAULT_TIMEOUT_SECONDS = 5.0;
+
     public function __construct(
         private readonly ClientInterface $httpClient,
         private readonly string $endpoint,
@@ -28,6 +30,7 @@ final class HttpNotificationSender implements NotificationSenderPort
                     'Signature' => $signature,
                 ],
                 'json' => $this->serializer->toArray($payment),
+                'timeout' => self::DEFAULT_TIMEOUT_SECONDS,
             ]);
         } catch (GuzzleException $exception) {
             throw new \RuntimeException(

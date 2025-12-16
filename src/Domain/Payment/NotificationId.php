@@ -6,16 +6,13 @@ namespace App\Domain\Payment;
 
 final class NotificationId
 {
-    private string $value;
-
-    private function __construct(string $value)
-    {
-        $this->value = $value;
+    private function __construct(
+        private readonly string $value
+    ) {
     }
 
     public static function fromString(string $value): self
     {
-        // Validación mínima sin librerías externas
         if (!self::isValidUuid($value)) {
             throw new \InvalidArgumentException('Invalid UUID format');
         }
@@ -23,7 +20,20 @@ final class NotificationId
         return new self($value);
     }
 
+    /**
+     * Genera un UUID v4 utilizando la librería ramsey/uuid.
+     */
+    public static function generate(): self
+    {
+        return self::fromString(\Ramsey\Uuid\Uuid::uuid4()->toString());
+    }
+
     public function value(): string
+    {
+        return $this->value;
+    }
+
+    public function __toString(): string
     {
         return $this->value;
     }
